@@ -13,17 +13,28 @@
     reboot. It is idempotent: re-run it anytime; it skips whatever is already installed.
 
 .EXAMPLE
+    # Complete install (prerequisites + auto) in ONE command, from scratch:
+    & ([scriptblock]::Create((irm https://raw.githubusercontent.com/Wolflags/auto/windows/install_auto.ps1))) -InstallDeps
+
+.EXAMPLE
     # Install auto only (no admin needed)
     iwr -useb https://raw.githubusercontent.com/Wolflags/auto/windows/install_auto.ps1 | iex
 
 .EXAMPLE
-    # Install prerequisites (Docker Desktop, WSL2, k3d, kubectl, helm, git, mkcert) + auto
-    .\install_auto.ps1 -InstallDeps
+    # Install/repair only the prerequisites (this is what `auto doctor --fix` runs)
+    .\install_auto.ps1 -DepsOnly
 #>
 [CmdletBinding()]
 param(
-    [switch]$InstallDeps
+    [switch]$InstallDeps,
+    # Install ONLY the prerequisites (Docker Desktop, WSL2, CLIs) and skip the
+    # auto.exe download. Used by `auto doctor --fix` so it never overwrites the
+    # auto.exe that is currently running.
+    [switch]$DepsOnly
 )
+
+# -DepsOnly is a prerequisites-only run, which implies installing dependencies.
+if ($DepsOnly) { $InstallDeps = $true }
 
 $ErrorActionPreference = 'Stop'
 $Repo = 'Wolflags/auto'
@@ -54,10 +65,12 @@ Write-Step "Detected Windows / $arch (asset: $AssetSuffix)"
 if ($InstallDeps -and -not (Test-Admin)) {
     if ($PSCommandPath) {
         Write-Host "Docker Desktop and WSL2 need administrator rights -- requesting elevation (accept the UAC prompt)..."
-        Start-Process -FilePath 'powershell' -Verb RunAs -ArgumentList @(
+        $relaunch = @(
             '-NoExit', '-NoProfile', '-ExecutionPolicy', 'Bypass',
             '-File', "`"$PSCommandPath`"", '-InstallDeps'
         )
+        if ($DepsOnly) { $relaunch += '-DepsOnly' }
+        Start-Process -FilePath 'powershell' -Verb RunAs -ArgumentList $relaunch
         return
     }
     Write-Warning "Please re-run this in an elevated PowerShell (Run as administrator) so Docker Desktop and WSL2 can be installed."
@@ -142,37 +155,40 @@ if (Test-Path $localYaml) {
 # 5. Optionally install prerequisites
 if ($InstallDeps) { Install-Deps }
 
-# 6. Download + extract the auto release (non-fatal if no Windows release is published yet)
-try {
-    Write-Step "Looking up the latest release on GitHub..."
-    $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" `
-        -Headers @{ 'User-Agent' = 'auto-installer' }
-    $asset = $release.assets | Where-Object { $_.name -like "auto-*$AssetSuffix.zip" } | Select-Object -First 1
-    if (-not $asset) { throw "No '$AssetSuffix' asset in the latest release." }
+# 6. Download + extract the auto release. Skipped in -DepsOnly mode so we never
+#    overwrite a running auto.exe. Non-fatal if no release is published yet.
+if (-not $DepsOnly) {
+    try {
+        Write-Step "Looking up the latest release on GitHub..."
+        $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" `
+            -Headers @{ 'User-Agent' = 'auto-installer' }
+        $asset = $release.assets | Where-Object { $_.name -like "auto-*$AssetSuffix.zip" } | Select-Object -First 1
+        if (-not $asset) { throw "No '$AssetSuffix' asset in the latest release." }
 
-    $tmpZip = Join-Path $env:TEMP 'auto-latest.zip'
-    Write-Step "Downloading $($asset.name)..."
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpZip
+        $tmpZip = Join-Path $env:TEMP 'auto-latest.zip'
+        Write-Step "Downloading $($asset.name)..."
+        Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $tmpZip
 
-    $tmpDir = Join-Path $env:TEMP ('auto-extract-' + [System.Guid]::NewGuid().ToString('N'))
-    Expand-Archive -Path $tmpZip -DestinationPath $tmpDir -Force
-    $staged = Get-ChildItem -Path $tmpDir -Directory | Select-Object -First 1
-    if (-not $staged) { $staged = Get-Item $tmpDir }
-    Copy-Item -Recurse -Force (Join-Path $staged.FullName '*') $AutoDir
-    Write-Step "auto installed into $AutoDir"
+        $tmpDir = Join-Path $env:TEMP ('auto-extract-' + [System.Guid]::NewGuid().ToString('N'))
+        Expand-Archive -Path $tmpZip -DestinationPath $tmpDir -Force
+        $staged = Get-ChildItem -Path $tmpDir -Directory | Select-Object -First 1
+        if (-not $staged) { $staged = Get-Item $tmpDir }
+        Copy-Item -Recurse -Force (Join-Path $staged.FullName '*') $AutoDir
+        Write-Step "auto installed into $AutoDir"
 
-    if ($configBak) {
-        Copy-Item -Force $configBak $localYaml
-        Write-Step "Restored local.yaml"
-        Remove-Item -Force $configBak -ErrorAction SilentlyContinue
+        if ($configBak) {
+            Copy-Item -Force $configBak $localYaml
+            Write-Step "Restored local.yaml"
+            Remove-Item -Force $configBak -ErrorAction SilentlyContinue
+        }
+        Remove-Item -Force $tmpZip -ErrorAction SilentlyContinue
+        Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
     }
-    Remove-Item -Force $tmpZip -ErrorAction SilentlyContinue
-    Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
-}
-catch {
-    Write-Warning "Could not download the auto release: $($_.Exception.Message)"
-    Write-Warning "If no Windows release is published yet, publish one (git tag vX.Y.Z) and re-run,"
-    Write-Warning "or copy a built auto.exe into $AutoDir manually."
+    catch {
+        Write-Warning "Could not download the auto release: $($_.Exception.Message)"
+        Write-Warning "If no Windows release is published yet, publish one (git tag vX.Y.Z) and re-run,"
+        Write-Warning "or copy a built auto.exe into $AutoDir manually."
+    }
 }
 
 # 7. Add ~/.auto to the USER PATH (persists across sessions)

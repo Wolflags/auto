@@ -653,27 +653,66 @@ def check_host_entry(host, exit_auto: bool = True):
     return False
 
 
-# winget package ids for the tools auto can auto-install on Windows.
-# k3d has no reliable winget package, so it is handled with manual guidance.
-_WINGET_IDS = {
-    "docker": "Docker.DockerDesktop",
-    "kubectl": "Kubernetes.kubectl",
-    "helm": "Helm.Helm",
-    "git": "Git.Git",
-    "mkcert": "FiloSottile.mkcert",
-}
+# Raw URL of the PowerShell installer on the fork, used to bootstrap it when the
+# copy bundled in ~/.auto is missing.
+_INSTALLER_RAW_URL = (
+    "https://raw.githubusercontent.com/Wolflags/auto/windows/install_auto.ps1"
+)
+
+
+def _run_full_installer_deps():
+    """Run the PowerShell installer's full prerequisite setup on Windows.
+
+    Delegates to ``install_auto.ps1 -InstallDeps -DepsOnly``, which self-elevates
+    (UAC), installs Docker Desktop + WSL2 + the CLIs, and handles the reboot.
+    ``-DepsOnly`` skips the auto.exe download so we never overwrite the running
+    binary. Prefers the installer bundled in ~/.auto; otherwise bootstraps it
+    from the fork.
+    """
+    rprint(
+        "\n[deep_sky_blue1]Launching the full installer "
+        "(Docker Desktop + WSL2 + CLIs) -- accept the UAC prompt...[/]"
+    )
+    local = platform.auto_dir("install_auto.ps1")
+    if os.path.isfile(local):
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            local,
+            "-InstallDeps",
+            "-DepsOnly",
+        ]
+    else:
+        bootstrap = (
+            "$t = Join-Path $env:TEMP 'auto-install.ps1'; "
+            f"iwr -useb {_INSTALLER_RAW_URL} -OutFile $t; "
+            "& $t -InstallDeps -DepsOnly"
+        )
+        cmd = [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            bootstrap,
+        ]
+    subprocess.run(cmd, shell=False, check=False)
 
 
 def run_doctor(fix=False):
     """Report (and optionally install) the external tools auto depends on.
 
-    This is the in-CLI prerequisite checker. On Windows, ``--fix`` installs the
-    winget-available tools; k3d is guided manually (scoop/choco/download). For a
-    full automated setup, the PowerShell installer's ``-InstallDeps`` is richer.
+    This is the in-CLI prerequisite checker. On Windows, ``--fix`` runs the full
+    installer (Docker Desktop + WSL2 + CLIs, with elevation + reboot handling) by
+    delegating to install_auto.ps1. On Linux/macOS it only reports (install the
+    tools per the README / your package manager).
     """
     https = CONFIG.get("https", False)
 
-    # (tool, note). k3d intentionally has no winget id (see _WINGET_IDS).
+    # (tool, note). k3d has no winget package; install_auto.ps1 handles it.
     tools = [
         ("docker", "Docker Desktop provides the engine k3d runs on"),
         ("k3d", "install via: scoop install k3d | choco install k3d | https://k3d.io"),
@@ -710,36 +749,19 @@ def run_doctor(fix=False):
         rprint("\n[green]All required tools are present.[/]")
         return
 
-    if fix and platform.IS_WINDOWS and platform.which("winget"):
-        for name in missing:
-            winget_id = _WINGET_IDS.get(name)
-            if winget_id:
-                rprint(f"\n[deep_sky_blue1]Installing {name} via winget...[/]")
-                run_and_wait(
-                    [
-                        "winget",
-                        "install",
-                        "-e",
-                        "--id",
-                        winget_id,
-                        "--accept-source-agreements",
-                        "--accept-package-agreements",
-                    ],
-                    capture_output=False,
-                )
-            else:
-                rprint(
-                    f"\n[yellow]{name} must be installed manually (see note above).[/]"
-                )
-        rprint("\n[italic]Open a new terminal so PATH changes take effect.[/]")
+    if fix and platform.IS_WINDOWS:
+        _run_full_installer_deps()
+    elif platform.IS_WINDOWS:
+        rprint(
+            "\n[yellow]Some tools are missing.[/] Run "
+            "[bright_cyan]auto doctor --fix[/] to install them all "
+            "(Docker Desktop + WSL2 + CLIs),"
+        )
+        rprint("or from a fresh machine: [bright_cyan]install_auto.ps1 -InstallDeps[/]")
     else:
         rprint(
-            "\n[yellow]Some tools are missing.[/] On Windows, re-run with "
-            "[bright_cyan]--fix[/] to install via winget,"
-        )
-        rprint(
-            "or run the installer's setup once: "
-            "[bright_cyan]install_auto.ps1 -InstallDeps[/]"
+            "\n[yellow]Some tools are missing.[/] Install them via your package "
+            "manager (see the README), then re-run [bright_cyan]auto doctor[/]."
         )
 
 

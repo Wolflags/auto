@@ -145,6 +145,27 @@ def test_check_docker(mock_declare_error, mock_run, mock_which):
     assert utils.check_docker() == 1
 
 
+@patch("autocli.utils.subprocess.run")
+def test_run_doctor_fix_delegates_to_installer(mock_run):
+    """On Windows, `doctor --fix` runs install_auto.ps1 -InstallDeps -DepsOnly."""
+    with patch("autocli.utils.platform.IS_WINDOWS", True), patch(
+        "autocli.utils.platform.which", return_value=None
+    ), patch(
+        "autocli.utils.platform.auto_dir",
+        return_value="C:/Users/u/.auto/install_auto.ps1",
+    ), patch(
+        "autocli.utils.os.path.isfile", return_value=True
+    ), patch.dict(
+        config.CONFIG, {"https": False}
+    ):
+        utils.run_doctor(fix=True)
+
+    argv = mock_run.call_args[0][0]
+    assert "-InstallDeps" in argv
+    assert "-DepsOnly" in argv
+    assert any("install_auto.ps1" in str(a) for a in argv)
+
+
 @patch("autocli.utils.run_and_return")
 def test_get_full_pod_name(mock_return):
     """get_full_pod_name parses kubectl JSON and returns the first Running match"""

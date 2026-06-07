@@ -55,16 +55,23 @@ curl -fsSL https://www.devocho.com/auto.sh | bash
 
 **Windows (PowerShell):**
 
+Complete install in **one command** — `auto` **plus** all prerequisites (Docker
+Desktop, WSL2, k3d, kubectl, helm, git, mkcert). It self-elevates (UAC) and tells
+you when a reboot is needed:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/Wolflags/auto/windows/install_auto.ps1))) -InstallDeps
+```
+
+Or just the `auto` binary (no prerequisites):
+
 ```powershell
 iwr -useb https://raw.githubusercontent.com/Wolflags/auto/windows/install_auto.ps1 | iex
 ```
 
-To also auto-install the prerequisites (Docker Desktop, k3d, kubectl, helm, git,
-mkcert), download the repo's `install_auto.ps1` and run it with `-InstallDeps`:
-
-```powershell
-.\install_auto.ps1 -InstallDeps
-```
+Already have `auto` but missing prerequisites? Run **`auto doctor --fix`** — it
+runs the same full installer (Docker Desktop + WSL2 + the CLIs, with elevation and
+a reboot prompt).
 
 On Windows, `auto` installs to `%USERPROFILE%\.auto` and adds it to your USER
 PATH. Open a new terminal afterwards, then run `auto doctor` to verify the
