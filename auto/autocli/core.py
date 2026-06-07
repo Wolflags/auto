@@ -563,7 +563,7 @@ def start_cluster(progress, task, key_file="", cert_file=""):
     ]
 
     # Attempt creation.
-    # capture_output is True to suppress verbose k3d INFO logs.
+    # Changed capture_output to True to suppress verbose k3d INFO logs.
     # run_and_wait will automatically print the output if the command fails.
     if not utils.run_and_wait(create_cmd, capture_output=True):
         utils.declare_error("Failed to create k3d cluster. Check logs above.")
@@ -647,7 +647,7 @@ def delete_cluster(progress, task) -> None:
 
             # Check docker containers (source of truth)
             docker_result = subprocess.run(
-                [platform.docker_bin(), "ps", "-a"],
+                ["docker", "ps", "-a"],
                 shell=False,
                 capture_output=True,
                 text=True,

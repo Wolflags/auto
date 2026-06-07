@@ -60,8 +60,3 @@ def test_k3d_bin_falls_back_to_bare_name(monkeypatch):
     # Skip the POSIX /usr/local/bin fallback so we exercise the bare-name return
     monkeypatch.setattr(platform, "IS_WINDOWS", True)
     assert platform.k3d_bin() == "k3d"
-
-
-def test_is_admin_returns_bool():
-    """is_admin returns a boolean on any platform"""
-    assert isinstance(platform.is_admin(), bool)

@@ -1,7 +1,7 @@
 """Auto Commands
 
-* `--dry-run`     This is for automated testing and visually testing the output
-* `--offline`     This disables steps that require internet so you can work without Internet
+  * `--dry-run`     This is for automated testing and visually testing the output
+  * `--offline`     This disables steps that require internet so you can work without Internet
 """
 
 import os
@@ -453,7 +453,8 @@ def update(self, force):  # pylint: disable=unused-argument
             # --force (from 0.7.3) updates even when already on the latest version.
             if VERSION == latest_version and not force:
                 rprint(f"[green]Current version ({VERSION}) is already the latest.[/]")
-                rprint("""
+                rprint(
+                    """
 ⠀⠀⠀⠀⠀⠀⠀⠀⣠⣴⣶⡋⠉⠙⠒⢤⡀⠀⠀⠀⠀⠀⢠⠖⠉⠉⠙⠢⡄⠀
 ⠀⠀⠀⠀⠀⠀⢀⣼⣟⡒⠒⠀⠀⠀⠀⠀⠙⣆⠀⠀⠀⢠⠃⠀⠀⠀⠀⠀⠹⡄
 ⠀⠀⠀⠀⠀⠀⣼⠷⠖⠀⠀⠀⠀⠀⠀⠀⠀⠘⡆⠀⠀⡇⠀⠀⠀⠀⠀⠀⠀⢷
@@ -468,7 +469,8 @@ def update(self, force):  # pylint: disable=unused-argument
 ⠀⠀⠀⢰⡯⠭⠹⡟⠿⠧⠷⣄⣀⣟⠛⣦⠔⠋⠛⠛⠋⠙⡆⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⢸⣿⠭⠉⠀⢠⣤⠀⠀⠀⠘⡷⣵⢻⠀⠀⠀⠀⣼⠀⣇⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⡇⣿⠍⠁⠀⢸⣗⠂⠀⠀⠀⣧⣿⣼⠀⠀⠀⠀⣯⠀⢸⠀⠀⠀⠀⠀⠀⠀
-    """)
+    """
+                )
                 return
             rprint(f"[steel_blue]Updating from {VERSION} to {latest_version}...[/]")
         except Exception:  # pylint: disable=broad-except

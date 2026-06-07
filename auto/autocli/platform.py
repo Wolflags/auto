@@ -80,11 +80,6 @@ def k3d_bin():
     return _resolve_bin("k3d", "/usr/local/bin/k3d")
 
 
-def docker_bin():
-    """Path to the docker binary."""
-    return _resolve_bin("docker", "/usr/bin/docker")
-
-
 def to_mount_path(path):
     """Convert a host path into the form k3d/Docker expects as a --volume source.
 
@@ -103,18 +98,3 @@ def posix_path(path):
     that is safe to hand to them whether or not a shell is involved.
     """
     return Path(path).expanduser().as_posix()
-
-
-def is_admin():
-    """Return True if the current process has administrative/root privileges."""
-    if IS_WINDOWS:
-        try:
-            import ctypes  # pylint: disable=import-outside-toplevel
-
-            return bool(ctypes.windll.shell32.IsUserAnAdmin())
-        except Exception:  # pylint: disable=broad-except
-            return False
-    try:
-        return os.geteuid() == 0
-    except AttributeError:
-        return False
