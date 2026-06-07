@@ -115,6 +115,19 @@ def test_start_registry(mock_run):
     assert "create" in mock_run.call_args[0][0]
 
 
+@patch("autocli.registry.rprint")
+@patch("autocli.utils.run_and_wait")
+def test_tag_pod_docker_image_missing_pod(mock_run, mock_print):
+    """A non-existent pod name prints a clear error and never touches docker."""
+    with patch.dict(CONFIG, {"code": "/no/such/code"}):
+        registry.tag_pod_docker_image("portal-756b7f8fbb-x2zkc")
+
+    # No docker build/tag/push attempted
+    mock_run.assert_not_called()
+    # A friendly "not found" message was printed (no traceback)
+    assert any("not found" in str(c.args[0]) for c in mock_print.call_args_list)
+
+
 @patch("subprocess.run")
 @patch("autocli.utils.run_and_wait")
 def test_delete_cluster_success(mock_run_wait, mock_sub):

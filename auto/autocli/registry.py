@@ -316,48 +316,51 @@ def tag_pod_docker_image(pod) -> None:
 
     # Local vars
     code_path = CONFIG["code"]
+    pod_dir = os.path.join(code_path, pod)
+    pod_config_path = os.path.join(pod_dir, ".auto", "config.yaml")
 
-    # We need to load the pod's config and see what version we are on
-    pod_config_path = os.path.join(code_path, pod, ".auto", "config.yaml")
+    # Validate up front so a wrong/missing name gives a clear message instead of
+    # an unhandled traceback. (Common mistake: passing the running pod's full
+    # name like 'portal-756b7f8fbb-x2zkc' instead of the short repo name 'portal'.)
+    if not os.path.isfile(pod_config_path):
+        rprint(f"\n[red bold]ERROR:[/] pod [bright_cyan]{pod}[/] not found")
+        rprint(f"  [italic]Expected {pod_config_path}[/]")
+        rprint(
+            "  [italic]Use the short repo name (e.g. 'auto tag portal'), "
+            "not the running pod's full name.[/]"
+        )
+        return
+
+    # Load the pod's config to see what version we are on
     with open(pod_config_path, encoding="utf-8") as pod_config_yaml:
         pod_config = yaml.safe_load(pod_config_yaml)
     version = pod_config["version"]
 
     rprint(f"  -- Building and Tagging: [bright_cyan]{pod} {version}")
+    rprint(f"     = Found pod {pod}")
 
-    # Verify the pod is real using the users source code folder
-    if os.path.isdir(os.path.join(code_path, pod)):
-        rprint(f"     = Found pod {pod}")
+    # Perform docker build. The build context is forward-slashed via posix_path so
+    # the Windows backslashes aren't eaten when the command is tokenized for
+    # shell-free execution.
+    rprint(f"     = Building [bright_cyan]{pod}[/] container")
+    build_context = platform.posix_path(pod_dir)
+    utils.run_and_wait(["docker", "build", "-t", f"{pod}:{version}", build_context])
 
-        # Perform docker build. The build context is forward-slashed via
-        # posix_path so the Windows backslashes aren't eaten when the command is
-        # tokenized for shell-free execution.
-        rprint(f"     = Building [bright_cyan]{pod}[/] container")
-        build_context = platform.posix_path(os.path.join(code_path, pod))
-        utils.run_and_wait(["docker", "build", "-t", f"{pod}:{version}", build_context])
+    # Tag the image for the registry
+    rprint(f"     = Tagging [bright_cyan]{pod}[/] image for the registry")
+    utils.run_and_wait(
+        [
+            "docker",
+            "tag",
+            f"{pod}:{version}",
+            f"k3d-registry.local:12345/{pod}:{version}",
+        ]
+    )
 
-        # Tag the image for the registry
-        rprint(f"     = Tagging [bright_cyan]{pod}[/] image for the registry")
-        utils.run_and_wait(
-            [
-                "docker",
-                "tag",
-                f"{pod}:{version}",
-                f"k3d-registry.local:12345/{pod}:{version}",
-            ]
-        )
+    # Push the image to the registry
+    rprint(f"     = Pushing [bright_cyan]{pod}[/] image to the registry")
+    utils.run_and_wait(["docker", "push", f"k3d-registry.local:12345/{pod}:{version}"])
 
-        # Push the image to the registry
-        rprint(f"     = Pushing [bright_cyan]{pod}[/] image to the registry")
-        utils.run_and_wait(
-            ["docker", "push", f"k3d-registry.local:12345/{pod}:{version}"]
-        )
-
-        # clean up your mess
-        rprint("  -- Cleaning unused images")
-        utils.run_and_wait(["docker", "image", "prune", "-f"])
-
-    # They tried to build a pod that didn't exist.  Maybe a typo?
-    else:
-        print("")
-        rprint(f"[red bold]ERROR: Portal {pod} does not exist")
+    # clean up your mess
+    rprint("  -- Cleaning unused images")
+    utils.run_and_wait(["docker", "image", "prune", "-f"])
