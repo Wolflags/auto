@@ -86,7 +86,7 @@ function Install-Deps {
     # --- Container engine: WSL2 + Docker Desktop (need admin; a fresh install needs a reboot) ---
     # Consider the engine present if the `docker` command is on PATH (covers Docker
     # Desktop, Rancher Desktop, or a custom install) OR Docker Desktop is installed
-    # in its standard location. If so, we leave it completely untouched.
+    # in its standard location. If so, we leave Docker itself untouched.
     $dockerExe = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
     $enginePresent = (Test-Tool docker) -or (Test-Path $dockerExe)
     if ($enginePresent) {
@@ -97,11 +97,22 @@ function Install-Deps {
         try { wsl --install --no-distribution } catch {
             Write-Warning "wsl --install reported: $($_.Exception.Message). You may need to enable WSL2 manually."
         }
-        if ($hasWinget) {
-            Write-Step "Installing Docker Desktop..."
-            winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
-        }
         $script:FreshEngine = $true
+    }
+
+    # Ensure the WSL2 kernel is CURRENT. Docker Desktop refuses to start with an
+    # old one ("your version of WSL is too old"). `wsl --update` is idempotent;
+    # `--web-download` covers VMs/machines without the Microsoft Store. We run it
+    # whether or not Docker was already installed, so re-running repairs the kernel.
+    if (Test-Tool wsl) {
+        Write-Step "Updating the WSL2 kernel (Docker needs a current version)..."
+        wsl --update
+        if ($LASTEXITCODE -ne 0) { wsl --update --web-download }
+    }
+
+    if (-not $enginePresent -and $hasWinget) {
+        Write-Step "Installing Docker Desktop..."
+        winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
     }
 
     # --- CLI tools (no reboot needed). Skip any that are already on PATH so we
@@ -210,6 +221,9 @@ if ($script:FreshEngine) {
     Write-Host "  2) After restart, Docker Desktop will launch -- accept its terms and"
     Write-Host "     wait until it shows 'Engine running'."
     Write-Host "  3) Open a NEW terminal and run:   auto start"
+    Write-Host ""
+    Write-Host "If Docker says 'your version of WSL is too old', run (as admin):"
+    Write-Host "     wsl --update      (or: wsl --update --web-download), then restart Docker."
     Write-Host ""
     Write-Host "This installer is safe to re-run; it skips whatever is already installed."
 }
