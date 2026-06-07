@@ -112,7 +112,9 @@ function Install-Deps {
 
     if (-not $enginePresent -and $hasWinget) {
         Write-Step "Installing Docker Desktop..."
-        winget install -e --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
+        # Pin --source winget so a broken/cert-mismatched 'msstore' source
+        # (common on fresh VMs: error 0x8a15005e) doesn't break the install.
+        winget install -e --source winget --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements
     }
 
     # --- CLI tools (no reboot needed). Skip any that are already on PATH so we
@@ -130,7 +132,8 @@ function Install-Deps {
             }
             else {
                 Write-Step "Installing $($t.Name)..."
-                winget install -e --id $t.Id --accept-source-agreements --accept-package-agreements
+                # --source winget avoids the often-broken 'msstore' source on VMs.
+                winget install -e --source winget --id $t.Id --accept-source-agreements --accept-package-agreements
             }
         }
     }
