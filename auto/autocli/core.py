@@ -827,8 +827,9 @@ def _build_install_command(pod_config, pod_name, code_dir):
             os.path.join(code_dir, pod_name, ".auto", "helm")
         )
 
-        # Construct helm command
-        command = f'{base_cmd} {cmd_args} --description "{desc}" {release_name} {helm_path}'.strip()
+        # Construct helm command. Quote the chart path so a code dir with spaces
+        # (e.g. C:/Users/First Last/...) stays a single token through shlex.
+        command = f'{base_cmd} {cmd_args} --description "{desc}" {release_name} "{helm_path}"'.strip()
     else:
         # They are using kubectl apply
         command = f"{base_cmd} {cmd_args}".strip()

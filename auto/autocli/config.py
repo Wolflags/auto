@@ -32,8 +32,11 @@ def load_config():
     if "code" in config:
         expanded_path = os.path.expanduser(config["code"])
         expanded_path = os.path.expandvars(expanded_path)
-        # Normalize to native separators so downstream os.path / display is clean.
-        config["code"] = os.path.normpath(expanded_path)
+        # On Windows, normalize to native separators so downstream os.path /
+        # display is clean. On POSIX leave the path exactly as main produced it.
+        config["code"] = (
+            os.path.normpath(expanded_path) if platform.IS_WINDOWS else expanded_path
+        )
 
         if not os.path.exists(config["code"]):
             rprint(
@@ -54,16 +57,16 @@ def load_config():
 def create_initial_config():
     """Create a default config file if none is present"""
 
-    # `~` for the code path is portable via expanduser on every platform.
-    # The system-pod commands keep `~` too; services.py expands and tokenizes
-    # them before running, so no shell is needed. HTTPS is on by default on every
-    # platform (same as Linux/macOS); the mkcert CA is trusted on the first
-    # `auto start` with https:true -- on Windows the certificate approval dialog
-    # appears then, just like the sudo prompt does on Linux/macOS.
+    # The code default matches main on POSIX (${HOME}); on Windows we swap it to
+    # ~ below, since ${HOME} isn't set there (expanduser handles ~ everywhere).
+    # The system-pod commands keep `~` -- services.py expands and tokenizes them
+    # before running, so no shell is needed. HTTPS is on by default on every
+    # platform; the mkcert CA is trusted on the first `auto start` with https:true
+    # (on Windows the certificate dialog appears then, like sudo on Linux/macOS).
     default_config = """\
 ---
 # The code folder is where you want us to download all of your pod code repositories
-code: ~/source/devocho
+code: ${HOME}/source/devocho
 
 # HTTPS in local
 # Set to `false` if you don't want this.  If it's false we will use port 8088 for local pod access.
@@ -120,6 +123,12 @@ system-pods:
         - kubectl apply -f ~/.auto/k3s/redis/service.yaml
         - kubectl apply -f ~/.auto/k3s/redis/ingress.yaml
 """
+    if platform.IS_WINDOWS:
+        # ${HOME} isn't set on Windows; ~ is portable via expanduser.
+        default_config = default_config.replace(
+            "code: ${HOME}/source/devocho", "code: ~/source/devocho"
+        )
+
     config_dir = platform.auto_dir("config")
     config_file = platform.auto_dir("config", "local.yaml")
     if not os.path.isfile(config_file):

@@ -66,7 +66,13 @@ def test_create_initial_config_is_valid_yaml(_mock_isfile, _mock_makedirs):
     written = "".join(call.args[0] for call in handle().write.call_args_list)
     parsed = yaml.safe_load(written)
 
-    assert parsed["code"] == "~/source/devocho"
+    # Default code path matches main on POSIX (${HOME}); Windows swaps to ~.
+    expected_code = (
+        "~/source/devocho"
+        if config.platform.IS_WINDOWS
+        else "${HOME}/source/devocho"
+    )
+    assert parsed["code"] == expected_code
     mysql = parsed["system-pods"][0]["pod"]
     assert isinstance(mysql["commands"], list)
     assert mysql["commands"][0].startswith("kubectl apply -f ~/.auto/k3s/mysql/")

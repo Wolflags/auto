@@ -5,7 +5,7 @@
 import os
 from unittest.mock import MagicMock, mock_open, patch
 
-from autocli import core, registry
+from autocli import core, registry, utils
 from autocli.config import CONFIG
 
 
@@ -408,3 +408,21 @@ def test_warn_missing_host_entries_reports_only_missing(mock_hosts):
     ]
     assert len(host_lines) == 1
     assert host_lines[0].endswith("portal.new-d8.local")
+
+
+def test_build_install_command_helm_path_survives_spaces():
+    """A code dir with spaces stays a single token in the helm chart path.
+
+    Regression: an unquoted chart path would be split by shlex (to_argv) when the
+    Windows user/home path contains a space (e.g. C:/Users/First Last/...).
+    """
+    pod_config = {"command": "helm install", "name": "portal", "desc": "Ref Portal"}
+    code_dir = os.path.join(os.sep + "tmp", "First Last", "src")
+
+    command, is_helm, _ = core._build_install_command(pod_config, "portal", code_dir)
+
+    assert is_helm
+    # to_argv is exactly what run_and_wait uses to tokenize a string command.
+    tokens = utils.to_argv(command)
+    assert tokens[-1].endswith("/portal/.auto/helm")
+    assert "First Last" in tokens[-1]

@@ -195,6 +195,14 @@ if (-not $DepsOnly) {
             Write-Step "Restored local.yaml"
             Remove-Item -Force $configBak -ErrorAction SilentlyContinue
         }
+        elseif (Test-Path $localYaml) {
+            # Fresh install: the bundled local.yaml ships the Linux/macOS default
+            # code path (/home/${USER}/...). Set a Windows-appropriate one -- ~
+            # expands to the user's home via Python's expanduser on Windows too.
+            $raw = (Get-Content $localYaml -Raw) -replace '(?m)^code:.*', 'code: ~/source/devocho'
+            [System.IO.File]::WriteAllText($localYaml, $raw, (New-Object System.Text.UTF8Encoding($false)))
+            Write-Step "Set Windows default code path (~/source/devocho)"
+        }
         Remove-Item -Force $tmpZip -ErrorAction SilentlyContinue
         Remove-Item -Recurse -Force $tmpDir -ErrorAction SilentlyContinue
     }

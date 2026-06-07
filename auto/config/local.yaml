@@ -1,7 +1,6 @@
 ---
 # The code folder is where you want us to download all of your pod code repositories
-# (~ expands to your home directory on Linux, macOS and Windows)
-code: ~/source/devocho
+code: /home/${USER}/source/devocho
 
 # Each repo listed here will be run as a pod in k3s
 # We expect them to have a .auto folder with a config.yaml file to tell us how
