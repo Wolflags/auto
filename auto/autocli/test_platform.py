@@ -25,10 +25,13 @@ def test_to_mount_path_has_no_backslashes(tmp_path):
 
 
 def test_hosts_path_windows(monkeypatch):
-    """Windows hosts path is under %SystemRoot%\\System32\\drivers\\etc"""
+    """Windows hosts path is built from %SystemRoot% + System32\\drivers\\etc\\hosts"""
     monkeypatch.setattr(platform, "IS_WINDOWS", True)
     monkeypatch.setenv("SystemRoot", r"C:\Windows")
-    assert platform.hosts_path() == r"C:\Windows\System32\drivers\etc\hosts"
+    # Build the expected value with the same os.path.join so the separator matches
+    # whatever OS runs the test (CI runs this on Linux/macOS too, where join uses '/').
+    expected = os.path.join(r"C:\Windows", "System32", "drivers", "etc", "hosts")
+    assert platform.hosts_path() == expected
 
 
 def test_hosts_path_posix(monkeypatch):
